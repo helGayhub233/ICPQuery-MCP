@@ -1,0 +1,15 @@
+timeout: 30
+concurrency: 1
+
+rate_limit:
+  enabled: true
+  query_per_min: 5
+  blacklist_per_min: 3
+  max_concurrent: 1
+
+proxy:
+  tunnel: ""
+  pool:
+    url: ""
+    size: 100
+    ipv6: false
