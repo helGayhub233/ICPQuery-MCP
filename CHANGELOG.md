@@ -1,5 +1,26 @@
 # Changelog
 
+## [Unreleased]
+
+## 0.2.0 - 2026-07-29
+
+### Added
+
+- Added MCP Tool Annotations, meaningful titles, complete parameter descriptions, server instructions, and a namespaced configuration resource.
+- Added PyPI project metadata and an `uvx` MCP client configuration example.
+- Added explicit Pydantic output models for environment diagnostics, configuration, MIIT status and errors, pagination, and provider data.
+
+### Changed
+
+- Updated the README compatibility badge to MCP SDK 2.0.0.
+- Redacted configured proxy URLs from diagnostic tool output.
+- Aligned the public `page_size` schema with the upstream maximum of 26.
+- Reduced the MCP runtime dependency to the SDK package without the unused CLI extra.
+- Standardized builds on Hatchling and explicitly included release examples in the source distribution.
+- Migrated from FastMCP v1 to the official MCP Python SDK 2.0.0 `MCPServer` API.
+- Added dual-era protocol support for MCP `2026-07-28` and legacy `2025-11-25` clients.
+- Declared server identity metadata through the public `MCPServer` constructor and migrated protocol model fields to snake_case.
+
 ## 0.1.0 - 2026-07-10
 
 ### Changed

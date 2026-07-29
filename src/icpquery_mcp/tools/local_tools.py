@@ -8,7 +8,17 @@ from icpquery_mcp.core.config import Config, load_config
 
 
 def show_config(config_path: str | None = None) -> dict[str, Any]:
-    return load_config(config_path).model_dump()
+    return _public_config(load_config(config_path))
+
+
+def _public_config(config: Config) -> dict[str, Any]:
+    """Return effective settings without exposing proxy credentials or tokens."""
+    data = config.model_dump()
+    proxy = data["proxy"]
+    proxy["tunnel"] = "<configured>" if proxy.get("tunnel") else ""
+    pool = proxy["pool"]
+    pool["url"] = "<configured>" if pool.get("url") else ""
+    return data
 
 
 async def async_icp_query(
@@ -62,7 +72,7 @@ def check_environment(config_path: str | None = None) -> dict[str, Any]:
         "dependencies": ["mcp", "httpx", "pydantic", "pillow", "pyyaml"],
         "supported_query_types": sorted(SERVICE_TYPES),
         "supported_blacklist_types": sorted(BLACKLIST_TYPES),
-        "config": cfg.model_dump(),
+        "config": _public_config(cfg),
     }
 
 

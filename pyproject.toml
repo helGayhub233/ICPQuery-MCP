@@ -1,30 +1,62 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "icpquery-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Python MCP server for querying MIIT ICP registration and blacklist information."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
+authors = [
+  { name = "helGayhub233" },
+]
+keywords = ["mcp", "icp", "miit", "备案", "osint"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Information Technology",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Internet :: WWW/HTTP",
+]
 dependencies = [
   "httpx[socks]>=0.27.0",
-  "mcp[cli]>=1.28.1",
+  "mcp>=2.0.0,<3",
   "pillow>=10.0.0",
   "pydantic>=2.0.0",
   "pyyaml>=6.0.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-  "build>=1.2.0",
-]
+[project.urls]
+Homepage = "https://github.com/helGayhub233/ICPQuery-MCP"
+Repository = "https://github.com/helGayhub233/ICPQuery-MCP"
+Issues = "https://github.com/helGayhub233/ICPQuery-MCP/issues"
 
 [project.scripts]
 icpquery-mcp = "icpquery_mcp.server:main"
 icpquery = "icpquery_mcp.cli:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/icpquery_mcp"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/README.md",
+  "/LICENSE",
+  "/CHANGELOG.md",
+  "/config.example.yml",
+  "/mcp.json.example",
+  "/pyproject.toml",
+  "/src",
+]
+exclude = [
+  "/.gitignore",
+]
+
+[tool.uv]
+package = true

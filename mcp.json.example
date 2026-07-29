@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "icp-query": {
+      "command": "uvx",
+      "args": [
+        "icpquery-mcp"
+      ],
+      "env": {
+        "ICP_RATE_LIMIT_QUERY_PER_MIN": "5",
+        "ICP_RATE_LIMIT_BLACKLIST_PER_MIN": "3",
+        "ICP_PROXY_TUNNEL": ""
+      }
+    }
+  }
+}

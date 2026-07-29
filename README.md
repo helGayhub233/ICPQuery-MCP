@@ -1,13 +1,13 @@
 <h1 align="center">ICPQuery-MCP</h1>
 
-<p align="center">基于 <code>FastMCP</code> 编写的 ICP 备案查询 MCP Server，支持网站、App、小程序、快应用备案信息和违法违规黑名单查询</p>
+<p align="center">查询网站、App、小程序及快应用备案与违法违规黑名单的 MCP Server</p>
 
 <p align="center">
-  <img src="https://img.shields.io/pypi/v/icpquery-mcp?label=PyPI&color=3775A9" alt="PyPI 版本"/>
-  <img src="https://img.shields.io/badge/Python-%3E%3D3.10-3776AB" alt="Python >=3.10"/>
-  <img src="https://img.shields.io/badge/MCP%20SDK-%3E%3D1.28.1-6F42C1" alt="MCP SDK >=1.28.1"/>
-  <img src="https://img.shields.io/pypi/dm/icpquery-mcp?label=Downloads&color=2EA44F" alt="PyPI 下载量"/>
-  <img src="https://img.shields.io/github/license/helGayhub233/ICPQuery-MCP?label=License&color=blue" alt="许可证"/>
+  <img src="https://badgen.net/pypi/v/icpquery-mcp?label=PyPI&color=3775A9&cache=300" alt="PyPI v0.2.0"/>
+  <img src="https://badgen.net/badge/Python/%3E%3D3.10/3776AB" alt="Python >=3.10"/>
+  <img src="https://badgen.net/badge/MCP%20SDK/2.0.0/6F42C1" alt="MCP SDK 2.0.0"/>
+  <img src="https://badgen.net/pypi/dm/icpquery-mcp?label=Downloads&color=2EA44F&cache=86400" alt="PyPI 下载量"/>
+  <img src="https://badgen.net/github/license/helGayhub233/ICPQuery-MCP?label=License&color=blue" alt="许可证"/>
 </p>
 
 ## 支持类型
@@ -22,21 +22,49 @@
 
 ## 快速开始
 
-### 从源码运行
+### 使用 uvx（推荐）
 
-要求 Python `>=3.10`，MCP Python SDK `>=1.28.1`。
+要求 Python `>=3.10`。无需 clone 或预先安装，在 MCP 客户端中直接运行 PyPI 包：
+
+```json
+{
+  "mcpServers": {
+    "icp-query": {
+      "command": "uvx",
+      "args": [
+        "icpquery-mcp"
+      ],
+      "env": {
+        "ICP_RATE_LIMIT_QUERY_PER_MIN": "5",
+        "ICP_RATE_LIMIT_BLACKLIST_PER_MIN": "3",
+        "ICP_PROXY_TUNNEL": ""
+      }
+    }
+  }
+}
+```
+
+### 使用 pip
 
 ```bash
-cd ICPQuery-MCP
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e ".[dev]"
+python -m pip install -U icpquery-mcp
 icpquery-mcp
+```
+
+### 从源码运行
+
+要求 Python `>=3.10`，MCP Python SDK `>=2.0.0,<3`。
+
+```bash
+git clone https://github.com/helGayhub233/ICPQuery-MCP.git
+cd ICPQuery-MCP
+uv sync
+uv run icpquery-mcp
 ```
 
 ### MCP 配置
 
-推荐在 MCP 客户端中固定项目目录运行：
+从源码运行时，推荐在 MCP 客户端中固定项目目录：
 
 ```json
 {
@@ -59,7 +87,7 @@ icpquery-mcp
 }
 ```
 
-如果已经在虚拟环境中安装，也可以直接使用入口命令：
+如果已经通过 pip 安装，也可以直接使用入口命令：
 
 ```json
 {
@@ -71,6 +99,12 @@ icpquery-mcp
   }
 }
 ```
+
+## MCP 协议兼容性
+
+服务使用官方 `MCPServer` API，同时兼容 `2026-07-28` 新协议和
+`2025-11-25` 旧协议。SDK 会根据客户端自动选择 `server/discover` 或传统
+`initialize` 流程，无需启动两套服务。
 
 ## 本地 CLI
 
@@ -99,7 +133,9 @@ icpquery query baidu.com -t bweb
 | `ICP_PROXY_POOL_SIZE` | 代理池大小，当前保留配置 |
 | `ICP_PROXY_POOL_IPV6` | 本地 IPv6 出口轮换开关，当前保留配置 |
 
-默认配置见 `config.example.yml`。
+默认配置见 `config.example.yml`；可直接复制的 MCP 客户端配置见
+`mcp.json.example`。`config_show` 和 `check_environment` 会将已配置的代理地址
+显示为 `<configured>`，避免把代理凭据带入 MCP 对话上下文。
 
 ## 工具列表
 
@@ -158,12 +194,14 @@ src/
       local_tools.py       # MCP 工具与 CLI 复用封装
 ```
 
-## 手动验证
+## 发布验证
 
 ```bash
-python -m compileall src
+PYTHONPYCACHEPREFIX=/tmp/icpquery-pyc python -m compileall src
 icpquery check-env
 icpquery config-show
+uv build
+npx --yes @modelcontextprotocol/inspector --cli icpquery-mcp --method tools/list
 ```
 
 ## 注意事项
