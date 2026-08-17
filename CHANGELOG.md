@@ -1,11 +1,10 @@
 # Changelog
 
-## [Unreleased]
+## 0.3.0 - 2026-08-17
 
 ### Added
 
 - Added a `glama.json` manifest at the repository root for Glama registry profile completion (maintainers, displayName, categories, tags, websiteUrl).
-- Added GitHub Actions CI across Python 3.10-3.14, including locked dependency installation, compilation, unit tests, dependency checks, package builds, Twine validation, and isolated wheel/sdist installation smoke tests.
 - Added regression coverage for configuration defaults, normalization and secret redaction, cross-tool request serialization and telemetry, lock recovery after failures, MCP tool metadata, structured output schemas, and the configuration resource.
 - Added structured logging in `ToolLimiter.run` covering `queue.wait` and `tool.complete` events with `queue_wait_ms` / `exec_ms` fields, making serialized execution observable without duplicate contention logs.
 - Added an explicit `meta` payload (`SINGLE_REQUEST_META`) on every tool, exposing `icpquery/concurrency_mode: single_request_complete`, `icpquery/concurrency_reason`, and `icpquery/max_parallel_recommended: 1` to agents via `tools/list` `_meta`.
