@@ -14,7 +14,6 @@ import httpx
 from icpquery_mcp.core.captcha import match_slider_offset
 from icpquery_mcp.core.config import Config
 
-
 AUTH_URL = "https://hlwicpfwc.miit.gov.cn/icpproject_query/api/auth"
 GET_CHECK_IMAGE_URL = "https://hlwicpfwc.miit.gov.cn/icpproject_query/api/image/getCheckImagePoint"
 CHECK_IMAGE_URL = "https://hlwicpfwc.miit.gov.cn/icpproject_query/api/image/checkImage"
@@ -106,7 +105,9 @@ class ICPQueryClient:
                 try:
                     headers = self._auth_headers(captcha, body)
                     detail = await self._post_json(DETAIL_BY_APP_MINI_URL, body, headers, proxy)
-                except Exception:
+                # Detail enrichment is best-effort. Any transport, decoding, or
+                # provider-shape failure must preserve the primary query result.
+                except Exception:  # noqa: BLE001
                     return item
                 if detail.get("success") is True and isinstance(detail.get("params"), dict):
                     return detail["params"]
@@ -123,7 +124,7 @@ class ICPQueryClient:
         img_result = await self._post_json(GET_CHECK_IMAGE_URL, body, headers, proxy)
         params = img_result.get("params")
         if not isinstance(params, dict):
-            raise RuntimeError("验证码响应缺少 params")
+            raise RuntimeError("验证码响应缺少 params")  # noqa: TRY004
         puuid = str(params.get("uuid") or "")
         big_image = str(params.get("bigImage") or "")
         small_image = str(params.get("smallImage") or "")
@@ -153,13 +154,13 @@ class ICPQueryClient:
                 return self._token, headers
 
             ts = int(now_ms)
-            auth_key = hashlib.md5(f"testtest{ts}".encode("utf-8")).hexdigest()
+            auth_key = hashlib.md5(f"testtest{ts}".encode()).hexdigest()
             headers["Content-Type"] = "application/x-www-form-urlencoded"
-            response = await self._post(AUTH_URL, f"authKey={auth_key}&timeStamp={ts}".encode("utf-8"), headers, proxy)
+            response = await self._post(AUTH_URL, f"authKey={auth_key}&timeStamp={ts}".encode(), headers, proxy)
             result = response.json()
             params = result.get("params")
             if not isinstance(params, dict):
-                raise RuntimeError("invalid token response")
+                raise RuntimeError("invalid token response")  # noqa: TRY004
             token = str(params.get("bussiness") or "")
             expire = int(params.get("expire") or 0)
             if not token or expire <= 0:

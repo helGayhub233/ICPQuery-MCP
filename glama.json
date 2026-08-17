@@ -1,0 +1,9 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "maintainers": ["helGayhub233"],
+  "displayName": "ICPQuery-MCP",
+  "description": "Query MIIT ICP registration records (website, app, mini-program, quick-app) and the illegal-entity blacklist. Concurrency-sensitive upstream; each server instance enforces a single-request-complete lock.",
+  "websiteUrl": "https://github.com/helGayhub233/ICPQuery-MCP",
+  "categories": ["Developer Tools", "Legal & Compliance", "Location Services"],
+  "tags": ["icp", "miit", "备案", "blacklist", "osint", "china", "mcp", "python"]
+}

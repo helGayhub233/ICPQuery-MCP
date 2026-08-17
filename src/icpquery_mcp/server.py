@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated, Any, Literal
+
+from mcp.server import MCPServer
+from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from icpquery_mcp.core.config import Config, load_config
 from icpquery_mcp.core.ratelimit import ToolLimiter
 from icpquery_mcp.models import EnvironmentReport, ICPQueryResponse
 from icpquery_mcp.tools import local_tools
-from mcp.server import MCPServer
-from mcp.types import ToolAnnotations
-from pydantic import Field
 
 LOCAL_READ_TOOL = ToolAnnotations(
     read_only_hint=True,
@@ -23,11 +25,30 @@ REMOTE_READ_TOOL = ToolAnnotations(
     open_world_hint=True,
 )
 
+# 强制单次请求-完成模式的元数据，下发给客户端以便智能体在规划阶段就感知到串行约束。
+SINGLE_REQUEST_META = {
+    "icpquery/concurrency_mode": "single_request_complete",
+    "icpquery/concurrency_reason": (
+        "The upstream MIIT service is concurrency-sensitive: parallel hits "
+        "trigger captcha throttling and IP bans. The server serializes all "
+        "remote queries through a lock shared by this server instance. Agents "
+        "SHOULD NOT issue parallel icp_query / icp_blacklist calls; they will "
+        "be queued and executed one at a time."
+    ),
+    "icpquery/max_parallel_recommended": 1,
+}
+
 SERVER_INSTRUCTIONS = (
-    "Use icp_query for normal MIIT website, app, mini-program, and quick-app "
-    "registration records; use icp_blacklist only for illegal-entity records. "
-    "Queries are serialized and rate-limited to reduce target-service throttling. "
-    "Use check_environment for diagnostics and config_show for redacted effective settings."
+    "ICPQuery-MCP exposes MIIT ICP registration and illegal-entity blacklist "
+    "lookups. Two remote tools (icp_query, icp_blacklist) hit a "
+    "concurrency-sensitive upstream and are executed under a server-instance "
+    "single-request-complete lock: agents SHOULD issue them strictly "
+    "sequentially, never in parallel. Concurrent calls are queued, not "
+    "rejected, but parallel fan-out wastes tokens and inflates latency. Use "
+    "icp_query for normal MIIT website/app/mini-program/quick-app records; "
+    "use icp_blacklist only for illegal-entity records. Use check_environment "
+    "for diagnostics and config_show for redacted effective settings; both are "
+    "local and safe to call any time."
 )
 
 TargetName = Annotated[
@@ -90,6 +111,14 @@ def create_server(config_path: str | None = None) -> Any:
         description="MIIT ICP registration and illegal-entity blacklist queries.",
         instructions=SERVER_INSTRUCTIONS,
         version=__version__,
+        website_url="https://github.com/helGayhub233/ICPQuery-MCP",
+        dependencies=[
+            "httpx[socks]>=0.27.0",
+            "mcp>=2.0.0,<3",
+            "pillow>=10.0.0",
+            "pydantic>=2.0.0",
+            "pyyaml>=6.0.0",
+        ],
     )
 
     @mcp.tool(
@@ -97,9 +126,13 @@ def create_server(config_path: str | None = None) -> Any:
         description=(
             "Inspect the local ICPQuery-MCP Python environment, dependencies, and "
             "supported registration and blacklist categories. Use this only for "
-            "diagnostics; it does not query MIIT or modify local configuration."
+            "diagnostics; it does not query MIIT or modify local configuration. "
+            "This is a local read-only call and is exempt from the "
+            "single-request-complete queue used by remote MIIT queries."
         ),
         annotations=LOCAL_READ_TOOL,
+        meta=SINGLE_REQUEST_META,
+        structured_output=True,
     )
     def check_environment() -> EnvironmentReport:
         return EnvironmentReport.model_validate(local_tools.check_environment(config_path))
@@ -110,9 +143,16 @@ def create_server(config_path: str | None = None) -> Any:
             "Search MIIT ICP registration records for a website, app, mini-program, "
             "or quick app. Use icp_blacklist instead for illegal or non-compliant "
             "entity records. This read-only remote request is limited to 5 calls per "
-            "minute by default and may use the configured proxy."
+            "minute by default and may use the configured proxy. "
+            "Concurrency: the upstream MIIT service is concurrency-sensitive; this "
+            "tool runs under the server instance's single-request-complete lock. Agents "
+            "SHOULD issue icp_query strictly sequentially and MUST NOT fan out "
+            "parallel calls — concurrent requests are queued and execute one at a "
+            "time, which inflates latency without throughput gain."
         ),
         annotations=REMOTE_READ_TOOL,
+        meta=SINGLE_REQUEST_META,
+        structured_output=True,
     )
     async def icp_query(
         name: TargetName,
@@ -133,9 +173,17 @@ def create_server(config_path: str | None = None) -> Any:
             "Search the MIIT illegal-entity blacklist for websites, apps, "
             "mini-programs, or quick apps. Use icp_query for normal registration and "
             "ownership records. This read-only remote request is limited to 3 calls "
-            "per minute by default and may use the configured proxy."
+            "per minute by default and may use the configured proxy. "
+            "Concurrency: the upstream MIIT service is concurrency-sensitive; this "
+            "tool runs under the server instance's single-request-complete lock (shared "
+            "with icp_query). Agents SHOULD issue icp_blacklist strictly "
+            "sequentially and MUST NOT fan out parallel calls — concurrent requests "
+            "are queued and execute one at a time, which inflates latency without "
+            "throughput gain."
         ),
         annotations=REMOTE_READ_TOOL,
+        meta=SINGLE_REQUEST_META,
+        structured_output=True,
     )
     async def icp_blacklist(
         name: TargetName,
@@ -153,9 +201,13 @@ def create_server(config_path: str | None = None) -> Any:
         description=(
             "Return the effective local ICPQuery-MCP timeout, proxy, concurrency, and "
             "rate-limit settings. Use check_environment for dependency diagnostics. "
-            "This read-only operation does not reveal credentials or modify configuration."
+            "This read-only operation does not reveal credentials or modify "
+            "configuration. Local call: exempt from the single-request-complete "
+            "queue used by remote MIIT queries."
         ),
         annotations=LOCAL_READ_TOOL,
+        meta=SINGLE_REQUEST_META,
+        structured_output=True,
     )
     def config_show() -> Config:
         return Config.model_validate(local_tools.show_config(config_path))
@@ -190,6 +242,10 @@ proxy:
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     create_server().run(transport="stdio")
 
 

@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Ruff
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v9
+      - name: Lint sources and tests
+        run: uvx ruff check src tests
+
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v9
+        with:
+          enable-cache: true
+      - name: Install locked dependencies
+        run: uv sync --frozen
+      - name: Compile sources
+        run: uv run python -m compileall -q src
+      - name: Run unit tests
+        run: uv run python -m unittest discover -s tests -v
+      - name: Check dependency compatibility
+        run: uv pip check
+
+  package:
+    name: Build package
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v9
+      - name: Build distributions
+        run: uv build --no-sources
+      - name: Validate distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheel_path="$(find "$GITHUB_WORKSPACE/dist" -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          sdist_path="$(find "$GITHUB_WORKSPACE/dist" -maxdepth 1 -type f -name '*.tar.gz' -print -quit)"
+          test -n "$wheel_path"
+          test -n "$sdist_path"
+          uvx --from twine twine check "$wheel_path" "$sdist_path"
+      - name: Smoke-test installed distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          smoke_root="${RUNNER_TEMP}/icpquery-mcp-package-smoke"
+          rm -rf "$smoke_root"
+          mkdir -p "$smoke_root"
+
+          wheel_path="$(find "$GITHUB_WORKSPACE/dist" -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          sdist_path="$(find "$GITHUB_WORKSPACE/dist" -maxdepth 1 -type f -name '*.tar.gz' -print -quit)"
+          test -n "$wheel_path"
+          test -n "$sdist_path"
+
+          smoke_distribution() {
+            local label="$1"
+            local artifact="$2"
+            local case_dir="$smoke_root/$label"
+            local venv_dir="$case_dir/venv"
+
+            mkdir -p "$case_dir"
+            uv venv "$venv_dir"
+            uv pip install --python "$venv_dir/bin/python" "$artifact"
+
+            (
+              cd "$case_dir"
+              "$venv_dir/bin/icpquery" version
+              "$venv_dir/bin/python" -c 'import asyncio; from importlib.metadata import entry_points; from icpquery_mcp.server import create_server; assert any(entry.name == "icpquery-mcp" and entry.value == "icpquery_mcp.server:main" for entry in entry_points(group="console_scripts")); server = create_server(); tools = asyncio.run(server.list_tools()); assert {tool.name for tool in tools} == {"check_environment", "config_show", "icp_blacklist", "icp_query"}'
+            )
+          }
+
+          smoke_distribution wheel "$wheel_path"
+          smoke_distribution sdist "$sdist_path"

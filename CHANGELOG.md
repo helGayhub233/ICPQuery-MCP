@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added a `glama.json` manifest at the repository root for Glama registry profile completion (maintainers, displayName, categories, tags, websiteUrl).
+- Added GitHub Actions CI across Python 3.10-3.14, including locked dependency installation, compilation, unit tests, dependency checks, package builds, Twine validation, and isolated wheel/sdist installation smoke tests.
+- Added regression coverage for configuration defaults, normalization and secret redaction, cross-tool request serialization and telemetry, lock recovery after failures, MCP tool metadata, structured output schemas, and the configuration resource.
+- Added structured logging in `ToolLimiter.run` covering `queue.wait` and `tool.complete` events with `queue_wait_ms` / `exec_ms` fields, making serialized execution observable without duplicate contention logs.
+- Added an explicit `meta` payload (`SINGLE_REQUEST_META`) on every tool, exposing `icpquery/concurrency_mode: single_request_complete`, `icpquery/concurrency_reason`, and `icpquery/max_parallel_recommended: 1` to agents via `tools/list` `_meta`.
+- Added `website_url` as server initialization metadata and declared `dependencies` for the MCP SDK's install/dev workflows.
+- Added explicit `structured_output=True` on all four tools (previously implied by Pydantic return types).
+
+### Changed
+
+- Strengthened `SERVER_INSTRUCTIONS` to state explicitly that remote tools share a single-request-complete lock within one server instance and that agents SHOULD issue them strictly sequentially, never in parallel.
+- Strengthened the `icp_query` and `icp_blacklist` tool descriptions to disclose the concurrency-sensitive upstream, the shared serialization lock, the default rate limits, and the "MUST NOT fan out parallel calls" guidance; `check_environment` and `config_show` descriptions now note they are exempt from the serialization queue.
+- Reworked `ToolLimiter.run` around a typed shared-lock invariant and contention timing; `SlidingWindowLimiter.acquire` now records rate-limit waits without exposing an unused return value.
+- Changed `Config.concurrency` default from `5` to `1` to match `Config.normalized()` behavior and remove the misleading impression that parallel detail fetching is allowed.
+- Documented per-instance lock semantics and the need for external coordination when multi-worker deployments require the same cross-instance invariant in `ratelimit.py`.
+- Reorganized README: numbered installation steps (1. install uv → 2. configure client), added uv prerequisite, version-pinning guidance, and pipx alternative; consolidated all config into a dedicated section with a default-value column.
+- Simplified the quick-start MCP config example: removed `ICP_RATE_LIMIT_QUERY_PER_MIN` and `ICP_RATE_LIMIT_BLACKLIST_PER_MIN` (defaults are built-in), exposed `ICP_PROXY_TUNNEL` directly with interception guidance.
+- Marked `ICP_CONCURRENCY` and `ICP_RATE_LIMIT_MAX_CONCURRENT` as "固定 1（不可调）" in the env var table to reflect the hardcoded single-request-complete invariant.
+- Merged the tool list and query parameters into a single table; renamed "发布验证" to "开发" with compile/check/build commands.
+- Added `mcp-name` ownership marker to README for MCP Registry verification.
+
 ## 0.2.0 - 2026-07-29
 
 ### Added

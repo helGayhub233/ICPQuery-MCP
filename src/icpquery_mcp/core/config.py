@@ -28,11 +28,12 @@ class ProxyConfig(BaseModel):
 
 class Config(BaseModel):
     timeout: int = 30
-    concurrency: int = 5
+    # 并发敏感：默认即串行。normalized() 会再次强制为 1，确保任何来源的配置都不会突破单次请求-完成模式。
+    concurrency: int = 1
     rate_limit: RateLimitConfig = Field(default_factory=RateLimitConfig)
     proxy: ProxyConfig = Field(default_factory=ProxyConfig)
 
-    def normalized(self) -> "Config":
+    def normalized(self) -> Config:
         data = self.model_dump()
         data["timeout"] = max(int(data.get("timeout") or 30), 1)
         data["concurrency"] = 1
