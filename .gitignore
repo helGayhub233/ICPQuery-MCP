@@ -8,6 +8,8 @@ dist/
 # Test / coverage / lint caches
 .coverage
 coverage.xml
+.pytest_cache/
+.ruff_cache/
 
 # Virtual environments
 .venv/
@@ -33,6 +35,3 @@ Thumbs.db
 # Logs / temp
 *.log
 *.tmp
-
-# Local scratch
-main.py

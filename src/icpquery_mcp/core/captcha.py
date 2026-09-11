@@ -24,6 +24,11 @@ def match_slider_offset(small_img_b64: str, big_img_b64: str) -> tuple[bool, int
     min_side = max(int(min(sw, sh) * 0.25), 1)
     max_side = max(min_side * 3, int(min(sw, sh) * 0.75))
 
+    # 缺口在缩放图中的边长与滑块块体尺寸一致（约为其一半）。以其为硬约束，
+    # 避免背景中"更大、更平坦的同色区域"盖过真实缺口而返回错误偏移。
+    target_side = max(_piece_side(small_img) // 2, 1)
+    tolerance = max(2, target_side // 10)
+
     color_ids: list[list[int]] = []
     counter: Counter[int] = Counter()
     pixels = resized.load()
@@ -38,6 +43,8 @@ def match_slider_offset(small_img_b64: str, big_img_b64: str) -> tuple[bool, int
 
     best_area = 0
     best_x = 0
+    fallback_area = 0
+    fallback_x = 0
     for color, _count in counter.most_common(5):
         col_run = [[0 for _ in range(w)] for _ in range(h)]
         for x in range(w):
@@ -56,21 +63,40 @@ def match_slider_offset(small_img_b64: str, big_img_b64: str) -> tuple[bool, int
                 run_w = seg.end - seg.start
                 if seg.start <= sw // 4:
                     continue
-                if run_w > max_side:
-                    continue
                 run_h = col_run[y][seg.start]
                 if run_h <= 0:
                     continue
                 ratio = run_w / run_h
-                if 0.7 < ratio < 1.4:
-                    area = run_w * run_h
-                    if area > best_area:
-                        best_area = area
-                        best_x = seg.start
+                if not 0.7 < ratio < 1.4:
+                    continue
+                area = run_w * run_h
+                # 宽松回退：保留原有"最大近方形同色块"行为，避免尺寸约束过严时漏检。
+                if run_w <= max_side and area > fallback_area:
+                    fallback_area = area
+                    fallback_x = seg.start
+                # 严格命中：宽高都贴合滑块块体的实际尺寸。
+                if (
+                    abs(run_w - target_side) <= tolerance
+                    and abs(run_h - target_side) <= tolerance
+                    and area > best_area
+                ):
+                    best_area = area
+                    best_x = seg.start
 
-    if best_area == 0:
-        return False, 0
-    return True, best_x * 2
+    if best_area:
+        return True, best_x * 2
+    if fallback_area:
+        return True, fallback_x * 2
+    return False, 0
+
+
+def _piece_side(small_img: Image.Image) -> int:
+    """滑块块体的实际边长：优先取不透明内容的包围盒。"""
+    if small_img.mode in ("RGBA", "LA"):
+        bbox = small_img.getchannel("A").getbbox()
+        if bbox:
+            return max(bbox[2] - bbox[0], bbox[3] - bbox[1])
+    return min(small_img.size)
 
 
 def _decode_base64_image(value: str) -> Image.Image:

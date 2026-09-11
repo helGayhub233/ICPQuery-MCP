@@ -44,7 +44,7 @@ class ServerMetadataTests(unittest.IsolatedAsyncioTestCase):
             server.dependencies,
             [
                 "httpx[socks]>=0.27.0",
-                "mcp>=2.0.0,<3",
+                "mcp>=2.2.0,<3",
                 "pillow>=10.0.0",
                 "pydantic>=2.0.0",
                 "pyyaml>=6.0.0",

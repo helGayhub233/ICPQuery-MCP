@@ -5,9 +5,9 @@
 <p align="center">查询网站、App、小程序及快应用备案与违法违规黑名单的 MCP Server</p>
 
 <p align="center">
-  <img src="https://badgen.net/pypi/v/icpquery-mcp?label=PyPI&color=3775A9&cache=300" alt="PyPI v0.3.0"/>
+  <img src="https://badgen.net/pypi/v/icpquery-mcp?label=PyPI&color=3775A9&cache=300" alt="PyPI v0.4.0"/>
   <img src="https://badgen.net/badge/Python/%3E%3D3.10/3776AB" alt="Python >=3.10"/>
-  <img src="https://badgen.net/badge/MCP%20SDK/2.0.0/6F42C1" alt="MCP SDK 2.0.0"/>
+  <img src="https://badgen.net/badge/MCP%20SDK/2.2.0/6F42C1" alt="MCP SDK 2.2.0"/>
   <img src="https://badgen.net/pypi/dm/icpquery-mcp?label=Downloads&color=2EA44F&cache=86400" alt="PyPI 下载量"/>
   <img src="https://badgen.net/github/license/helGayhub233/ICPQuery-MCP?label=License&color=blue" alt="许可证"/>
 </p>
@@ -56,7 +56,7 @@ brew install uv
 
 目标接口有创宇盾防护，高频访问或特定 IP 可能触发拦截。触发拦截时通过 `ICP_PROXY_TUNNEL` 走代理访问；不需要代理时移除 `env` 或将值留空。代理地址须带协议前缀（`http://`、`https://` 或 `socks5://`）。
 
-> **版本锁定**（生产环境推荐）：将 `args` 替换为 `["--from", "icpquery-mcp==0.3.0", "icpquery-mcp"]`，避免随发布版本浮动。
+> **版本锁定**（生产环境推荐）：将 `args` 替换为 `["--from", "icpquery-mcp==0.4.0", "icpquery-mcp"]`，避免随发布版本浮动。
 
 频率限制已内置默认值（query 5 次/分钟、blacklist 3 次/分钟），无需额外配置。完整配置示例见 `mcp.json.example` 和 `config.example.yml`。
 

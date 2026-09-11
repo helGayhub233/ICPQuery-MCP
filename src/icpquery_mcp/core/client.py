@@ -30,6 +30,10 @@ USER_AGENT = (
 SERVICE_TYPES = {"web": 1, "app": 6, "mapp": 7, "kapp": 8}
 BLACKLIST_TYPES = {"bweb": 1, "bapp": 6, "bmapp": 7, "bkapp": 8}
 
+# 滑块识别偶发受背景同色区域影响，上游会拒绝错误偏移；上游每轮返回的图片是随机的，
+# 因此一次有界自动重试即可显著降低调用方感知到的失败率。
+_CAPTCHA_ATTEMPTS = 2
+
 
 @dataclass
 class CaptchaResult:
@@ -116,6 +120,15 @@ class ICPQueryClient:
         params["list"] = await asyncio.gather(*(fetch_one(item) for item in items))
 
     async def _check_img(self, proxy: str) -> CaptchaResult:
+        last_error: RuntimeError | None = None
+        for _attempt in range(_CAPTCHA_ATTEMPTS):
+            try:
+                return await self._solve_captcha(proxy)
+            except RuntimeError as exc:
+                last_error = exc
+        raise last_error if last_error is not None else RuntimeError("验证码识别失败")
+
+    async def _solve_captcha(self, proxy: str) -> CaptchaResult:
         token, headers = await self._get_token(proxy)
         client_uid = "point-" + str(uuid.uuid4())
         body = {"clientUid": client_uid}

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.0 - 2026-09-11
+
+### Fixed
+
+- Fixed intermittent `Error executing tool icp_query: 验证码识别失败` ("captcha recognition failed") by constraining the slider-gap candidate to the piece's own size: a strict pass now only accepts near-square runs whose width and height match the slider block (scaled to half), so a larger flat background region can no longer outscore the real gap.
+- Kept the previous "largest near-square same-color block" behavior as a fallback that only applies when the strict pass finds nothing, so valid matches are not lost when the size constraint is too tight.
+
+### Changed
+
+- Updated the MCP Python SDK dependency to the latest 2.2.0 and raised the requirement to `mcp>=2.2.0,<3`, keeping `uv.lock`, the server dependency metadata and the README compatibility badge in sync.
+
+### Added
+
+- Added `_piece_side()` in `captcha.py` to measure the slider block's actual side length from the alpha-channel bounding box instead of assuming the canvas size.
+- Added a bounded retry in `ICPQueryClient._check_img` (`_CAPTCHA_ATTEMPTS = 2`); the upstream returns a fresh image per attempt, so one automatic retry keeps the caller-visible failure rate low. The original logic moved to `_solve_captcha`.
+- Added `tests/test_captcha.py` regression coverage: `_piece_side` uses the opaque bounding box, a larger same-color decoy no longer displaces the real gap, and the fallback path still returns the largest near-square block when no sized candidate exists.
+
 ## 0.3.0 - 2026-08-17
 
 ### Added
@@ -20,8 +37,8 @@
 - Documented per-instance lock semantics and the need for external coordination when multi-worker deployments require the same cross-instance invariant in `ratelimit.py`.
 - Reorganized README: numbered installation steps (1. install uv → 2. configure client), added uv prerequisite, version-pinning guidance, and pipx alternative; consolidated all config into a dedicated section with a default-value column.
 - Simplified the quick-start MCP config example: removed `ICP_RATE_LIMIT_QUERY_PER_MIN` and `ICP_RATE_LIMIT_BLACKLIST_PER_MIN` (defaults are built-in), exposed `ICP_PROXY_TUNNEL` directly with interception guidance.
-- Marked `ICP_CONCURRENCY` and `ICP_RATE_LIMIT_MAX_CONCURRENT` as "固定 1（不可调）" in the env var table to reflect the hardcoded single-request-complete invariant.
-- Merged the tool list and query parameters into a single table; renamed "发布验证" to "开发" with compile/check/build commands.
+- Marked `ICP_CONCURRENCY` and `ICP_RATE_LIMIT_MAX_CONCURRENT` as "fixed at 1 (not configurable)" in the env var table to reflect the hardcoded single-request-complete invariant.
+- Merged the tool list and query parameters into a single table; renamed the "Release verification" section to "Development" with compile/check/build commands.
 - Added `mcp-name` ownership marker to README for MCP Registry verification.
 
 ## 0.2.0 - 2026-07-29
@@ -47,49 +64,50 @@
 
 ### Changed
 
-- 将 MCP Python SDK 依赖更新为当前 PyPI 最新版本 `mcp[cli]>=1.28.1`，并同步更新 README 徽章与运行要求。
-- 将 HTTP 客户端依赖调整为 `httpx[socks]>=0.27.0`，兼容本地 SOCKS 代理环境。
-- 对齐 `SurveyHub-MCP` 补全 `.gitignore`、MIT `LICENSE` 和 pyproject 许可证声明。
-- 增加 MCP 内部单例队列保护：即使 Qoder/IDE 默认并发触发 5/10 个工具调用，`icp_query` 和 `icp_blacklist` 也会在服务进程内排队串行执行，前一个完整结束后才进入下一个真实查询。
-- `rate_limit.max_concurrent` 强制归一为 `1`，作为防止目标接口风控/banned 的安全默认值。
-- `concurrency` 强制归一为 `1`，App、小程序、快应用详情补全也改为串行访问目标接口。
-- 在 `server.py`、`core/config.py`、`core/ratelimit.py`、`config.example.yml` 和 `README.md` 增加注释/说明，明确智能体默认仅并发 1 个真实查询。
+- Updated the MCP Python SDK dependency to the then-latest PyPI release `mcp[cli]>=1.28.1`, syncing the README badge and runtime requirements.
+- Adjusted the HTTP client dependency to `httpx[socks]>=0.27.0` for local SOCKS proxy environments.
+- Aligned with `SurveyHub-MCP` by adding `.gitignore`, the MIT `LICENSE`, and the pyproject license declaration.
+- Added in-process singleton queue protection: even when a Qoder/IDE client fans out 5-10 tool calls concurrently, `icp_query` and `icp_blacklist` queue up and execute serially inside the server process, starting the next real query only after the previous one fully completes.
+- Normalized `rate_limit.max_concurrent` to `1` as a safe default against upstream risk control and bans.
+- Normalized `concurrency` to `1`; App, Mini Program and Quick App detail fetching now also access the upstream serially.
+- Added comments and notes in `server.py`, `core/config.py`, `core/ratelimit.py`, `config.example.yml` and `README.md` stating that agents default to exactly one real query in flight.
 
 ### Added
 
-- 初始化 `ICPQuery-MCP` Python3 项目，采用 `SoftwareCopyright-MCP` 同款 `src-layout`、`pyproject.toml`、本地 CLI 和 FastMCP 服务结构。
-- 复刻 `icp-query-go` 核心 MCP 能力：
-  - `icp_query`：查询 ICP 备案信息，支持 `web/app/mapp/kapp`。
-  - `icp_blacklist`：查询违法违规黑名单，支持 `bweb/bapp/bmapp/bkapp`。
-  - `config_show`：输出当前运行配置。
-  - `check_environment`：检查依赖、配置和支持的查询类型。
-- 实现工信部接口调用流程：
-  - 自动获取 `auth` token。
-  - 自动请求并识别滑块验证码。
-  - 提交验证码结果获取签名。
-  - 查询备案/黑名单接口。
-  - 对 App、小程序、快应用结果自动补充详情信息。
-- 增加 Python 版滑块验证码偏移识别模块，使用 Pillow 进行图片解码、降采样、颜色量化和缺口定位。
-- 增加 MCP 工具级限流与并发控制，支持查询频率和最大并发配置。
-- 增加 YAML 配置读取与 `ICP_` 前缀环境变量覆盖。
-- 增加 `icpquery` 本地 CLI：
+- Initialized the `ICPQuery-MCP` Python project with the same `src-layout`, `pyproject.toml`, local CLI and FastMCP server structure used by `SoftwareCopyright-MCP`.
+- Ported the core MCP capabilities of `icp-query-go`:
+  - `icp_query`: query ICP filing information, supporting `web/app/mapp/kapp`.
+  - `icp_blacklist`: query the violation blacklist, supporting `bweb/bapp/bmapp/bkapp`.
+  - `config_show`: print the current runtime configuration.
+  - `check_environment`: check dependencies, configuration and supported query types.
+- Implemented the MIIT API flow:
+  - Automatically obtain the `auth` token.
+  - Automatically request and solve the slider captcha.
+  - Submit the captcha result to obtain a signature.
+  - Query the filing / blacklist endpoints.
+  - Automatically enrich App, Mini Program and Quick App results with details.
+- Added a Python slider-captcha offset module using Pillow for image decoding, downsampling, color quantization and gap localization.
+- Added MCP tool-level rate limiting and concurrency control with configurable query rate and maximum concurrency.
+- Added YAML configuration loading with `ICP_`-prefixed environment variable overrides.
+- Added the local `icpquery` CLI:
   - `icpquery query`
   - `icpquery config-show`
   - `icpquery check-env`
   - `icpquery version`
-- 增加 `config.example.yml` 示例配置。
-- 增加中文 `README.md`，包含安装、运行、MCP 客户端配置、CLI 使用和免责声明。
-- 增加 `.gitignore`，忽略虚拟环境、缓存、构建产物和系统文件。
+- Added `config.example.yml` as an example configuration.
+- Added a Chinese `README.md` covering installation, running, MCP client configuration, CLI usage and the disclaimer.
+- Added `.gitignore` for virtual environments, caches, build artifacts and OS files.
+
 ### Verified
 
-- 已创建 Python 3.11 虚拟环境并安装项目依赖。
-- 已验证 MCP Server 可创建 `FastMCP` 实例。
-- 已验证 CLI：
+- Created a Python 3.11 virtual environment and installed the project dependencies.
+- Verified the MCP server can create a `FastMCP` instance.
+- Verified the CLI:
   - `icpquery check-env`
   - `icpquery config-show`
-- 已验证 `baidu.com` ICP 查询返回 `code=200`、`success=true`。
+- Verified an ICP query for `baidu.com` returns `code=200` and `success=true`.
 
 ### Notes
 
-- 本项目通过非官方方式调用工信部 ICP 备案查询接口，接口行为、验证码策略或风控策略可能变化。
-- `proxy.pool.url` 和本地 IPv6 出口轮换暂保留配置结构，当前 Python 版本优先支持显式代理 `proxy` 和固定代理隧道 `proxy.tunnel`。
+- This project calls the MIIT ICP filing API in a non-official way; endpoint behavior, captcha policy or risk-control policy may change.
+- `proxy.pool.url` and local IPv6 egress rotation are kept as configuration placeholders only; the current Python version favors the explicit `proxy` and the fixed tunnel `proxy.tunnel`.
