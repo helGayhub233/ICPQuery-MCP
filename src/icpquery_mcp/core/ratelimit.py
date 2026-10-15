@@ -51,8 +51,8 @@ class ToolLimiter:
         self.query = SlidingWindowLimiter(query_per_min)
         self.blacklist = SlidingWindowLimiter(blacklist_per_min)
         self.configured_max_concurrent = max_concurrent
-        # 内部保险丝：无论 MCP 客户端并发多少 tool call，真实查询只串行执行。
-        # 此 ToolLimiter 实例的锁覆盖所有需要访问上游接口的工具。
+        # Serialize all upstream tools regardless of MCP client concurrency.
+        # This lock covers every remote tool owned by this limiter instance.
         self._remote_call_lock = asyncio.Lock()
 
     async def run(self, kind: LimiterKind, func: Callable[[], Awaitable[ResultT]]) -> ResultT:

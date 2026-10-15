@@ -28,12 +28,14 @@ async def async_icp_query(
     page_size: int = 26,
     proxy: str = "",
     config_path: str | None = None,
+    include_details: bool = True,
+    max_detail_enrichment: int = 10,
 ) -> dict[str, Any]:
     if not name.strip():
         raise ValueError("name 不能为空")
     cfg = load_config(config_path)
     client = ICPQueryClient(cfg)
-    return await client.query(name.strip(), type, page or 1, page_size or 26, proxy)
+    return await client.query(name.strip(), type, page or 1, page_size or 26, proxy, include_details=include_details, max_detail_enrichment=max_detail_enrichment)
 
 
 async def async_icp_blacklist(
@@ -56,8 +58,10 @@ def icp_query(
     page_size: int = 26,
     proxy: str = "",
     config_path: str | None = None,
+    include_details: bool = True,
+    max_detail_enrichment: int = 10,
 ) -> dict[str, Any]:
-    return asyncio.run(async_icp_query(name, type, page, page_size, proxy, config_path))
+    return asyncio.run(async_icp_query(name, type, page, page_size, proxy, config_path, include_details, max_detail_enrichment))
 
 
 def icp_blacklist(name: str, type: str = "bweb", proxy: str = "", config_path: str | None = None) -> dict[str, Any]:

@@ -5,9 +5,9 @@
 <p align="center">查询网站、App、小程序及快应用备案与违法违规黑名单的 MCP Server</p>
 
 <p align="center">
-  <img src="https://badgen.net/pypi/v/icpquery-mcp?label=PyPI&color=3775A9&cache=300" alt="PyPI v0.4.0"/>
+  <img src="https://badgen.net/pypi/v/icpquery-mcp?label=PyPI&color=3775A9&cache=300" alt="PyPI v0.5.0"/>
   <img src="https://badgen.net/badge/Python/%3E%3D3.10/3776AB" alt="Python >=3.10"/>
-  <img src="https://badgen.net/badge/MCP%20SDK/2.2.0/6F42C1" alt="MCP SDK 2.2.0"/>
+  <img src="https://badgen.net/badge/MCP%20SDK/2.3.0/6F42C1" alt="MCP SDK 2.3.0"/>
   <img src="https://badgen.net/pypi/dm/icpquery-mcp?label=Downloads&color=2EA44F&cache=86400" alt="PyPI 下载量"/>
   <img src="https://badgen.net/github/license/helGayhub233/ICPQuery-MCP?label=License&color=blue" alt="许可证"/>
 </p>
@@ -17,12 +17,14 @@
 | 类型 | 能力 |
 | --- | --- |
 | 网站备案 | 域名、主体名称、备案号等关键词查询 |
-| App 备案 | App 名称、主体名称等关键词查询，并自动补充详情 |
-| 小程序备案 | 小程序名称、主体名称等关键词查询，并自动补充详情 |
-| 快应用备案 | 快应用名称、主体名称等关键词查询，并自动补充详情 |
+| App 备案 | App 名称、主体名称等关键词查询，可选补充详情 |
+| 小程序备案 | 小程序名称、主体名称等关键词查询，可选补充详情 |
+| 快应用备案 | 快应用名称、主体名称等关键词查询，可选补充详情 |
 | 违法违规黑名单 | 网站、App、小程序、快应用黑名单查询 |
 
 ## 快速开始
+
+源码要求 Python `>=3.10`，MCP Python SDK `mcp[cli]>=2.3.0,<3`；锁文件和当前回归验证使用 SDK `2.3.0`。
 
 ### 1. 安装 uv
 
@@ -56,7 +58,7 @@ brew install uv
 
 目标接口有创宇盾防护，高频访问或特定 IP 可能触发拦截。触发拦截时通过 `ICP_PROXY_TUNNEL` 走代理访问；不需要代理时移除 `env` 或将值留空。代理地址须带协议前缀（`http://`、`https://` 或 `socks5://`）。
 
-> **版本锁定**（生产环境推荐）：将 `args` 替换为 `["--from", "icpquery-mcp==0.4.0", "icpquery-mcp"]`，避免随发布版本浮动。
+> **版本锁定**（生产环境推荐）：将 `args` 替换为 `["--from", "icpquery-mcp==0.5.0", "icpquery-mcp"]`，避免随发布版本浮动。
 
 频率限制已内置默认值（query 5 次/分钟、blacklist 3 次/分钟），无需额外配置。完整配置示例见 `mcp.json.example` 和 `config.example.yml`。
 
@@ -123,12 +125,20 @@ uv run icpquery-mcp
 
 | 工具 | 说明 | 参数 |
 | --- | --- | --- |
-| `icp_query` | 查询 ICP 备案信息 | `name`（关键词）、`type`（`web`/`app`/`mapp`/`kapp`，默认 `web`）、`page`（默认 `1`）、`page_size`（最大 `26`）、`proxy`（单次代理） |
+| `icp_query` | 查询 ICP 备案信息 | `name`（关键词）、`type`（`web`/`app`/`mapp`/`kapp`，默认 `web`）、`page`（默认 `1`）、`page_size`（最大 `26`）、`proxy`（单次代理）、`include_details`（默认 `false`）、`max_detail_enrichment`（默认及最大 `10`） |
 | `icp_blacklist` | 查询违法违规黑名单 | `name`（关键词）、`type`（`bweb`/`bapp`/`bmapp`/`bkapp`，默认 `bweb`）、`proxy`（单次代理） |
 | `config_show` | 查看当前运行配置 | — |
 | `check_environment` | 检查运行环境、依赖和支持类型 | — |
 
 `proxy` 参数优先级高于 `ICP_PROXY_TUNNEL` 环境变量。
+
+实际工具目录、参数与输出 Schema 以连接后 `tools/list` 为准。全部工具拒绝多余参数；空白关键词、无效类型和超出范围的分页参数会在外呼之前返回 `validation_error`。
+
+查询结果保留 MIIT 的 `code`、`success`、`message`、`params` / `data` 字段。业务失败、参数校验失败和执行异常都返回 `success=false`、`error.type`、`isError=true`，并提供与文本 JSON 相等的 `structuredContent`。稳定错误类别包括 `provider_error`、`validation_error`、`tool_not_found`、`timeout`、`network_error`、`http_error`、`invalid_response`、`captcha_error`、`provider_blocked`、`internal_error` 和 `output_too_large`；参数错误不回显被拒绝的值，网络错误不回显代理 URL。工信部 `code=500` 保留既有客户端码 `122`，原始码在 `error.details.provider_code` 中。协议错误及取消继续交由 SDK 处理。
+
+`config_show` 和 `check_environment` 保留各自原有的成功结果结构，输出 Schema 增加共同的失败分支。失败响应的完整性固定为 `unknown`，`next_action=stop`；分页信号冲突时返回 `pagination_conflict` 警告，不会据此宣称结果完整。可选详情请求失败会保留对应摘要并返回 `detail_enrichment_failed` 警告。
+
+公开工具负载按 UTF-8 JSON 限制为 64 KiB，结构化结果和兼容文本副本分别受限；该值不代表两份内容的传输合计或 token 数。长字段保留前 4096 字符并附截断标记；记录按原始顺序保留可容纳的前缀，`output` 记录省略条数和裁剪字段数，`returned_count` 与实际返回条数一致。`next_action=refine_query` 表示本地裁剪，应缩小查询、关闭详情或减少 `page_size` 后再继续，直接翻页会跳过本页被省略的记录。记录标识不被改写；无法容纳的元数据返回 `output_too_large`。
 
 ## 本地 CLI
 
@@ -158,11 +168,16 @@ Qoder 等 MCP 客户端可能默认并发触发 5-10 个 tool call；同一 serv
 
 服务使用官方 `MCPServer` API，同时兼容 `2026-07-28` 新协议和 `2025-11-25` 旧协议。SDK 会根据客户端自动选择 `server/discover` 或传统 `initialize` 流程，无需启动两套服务。
 
+`2026-07-28` 的静态目录和发现结果提供 5 分钟 `public` 缓存提示，配置示例资源提供 1 小时 `public` 提示；客户端可据此复用，变更通知可提前使缓存失效。查询结果、`config_show` 和 `check_environment` 属于动态工具调用，不设置缓存提示。旧协议由 SDK 省略不适用的缓存字段。
+
 ## 项目结构
 
 ```text
 src/icpquery_mcp/
   server.py              # MCP 入口
+  mcp_server.py          # 参数、异常契约与缓存提示
+  responses.py           # 业务状态、分页与输出预算
+  models.py              # 结构化结果与错误模型
   cli.py                 # 本地 CLI
   core/
     client.py            # 工信部接口调用、token、验证码和详情补全

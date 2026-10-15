@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.0 - 2026-10-15
+
+### Changed
+
+- Require `mcp[cli]>=2.3.0,<3`, lock SDK/types to 2.3.0, and align README and SDK install metadata. Update the SDK's HTTP transport dependencies as required by the new SDK.
+- Publish positive SEP-2549 cache hints for static catalogs, discovery, and the example resource; keep dynamic query/config/environment calls uncached.
+- Reject unknown arguments and blank names before remote execution, and expose `additionalProperties=false` in every input schema.
+- Bound public UTF-8 tool JSON to 64 KiB per copy with explicit string/record clipping, consistent counts, and `next_action=refine_query`.
+
+### Fixed
+
+- Mark provider failures as MCP errors and return schema-valid structured errors for validation, unknown tools, network/HTTP failures, and unexpected exceptions. Preserve local success shapes, JSON-RPC errors, cancellation, and credential redaction.
+- Prevent failed or contradictory provider responses from claiming complete results or suggesting blind continuation; use actual returned rows for short-page pagination.
+- Preserve primary summaries when optional detail JSON is malformed or a detail request fails, report enrichment warnings, and skip enrichment after failed primary queries.
+
+### Tests
+
+- Add offline contract, pagination, clipping, detail-fallback, caching, and credential-redaction regressions, plus independent stdio processes for 2025-03-26, 2025-11-25, and 2026-07-28.
+
 ## 0.4.0 - 2026-09-11
 
 ### Fixed

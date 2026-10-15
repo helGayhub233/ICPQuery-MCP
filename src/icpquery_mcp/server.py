@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
-from mcp.server import MCPServer
-from mcp.types import ToolAnnotations
+from mcp.types import CallToolResult, ToolAnnotations
 from pydantic import Field
 
 from icpquery_mcp.core.config import Config, load_config
 from icpquery_mcp.core.ratelimit import ToolLimiter
+from icpquery_mcp.mcp_server import ICPQueryMCPServer
 from icpquery_mcp.models import EnvironmentReport, ICPQueryResponse
+from icpquery_mcp.responses import tool_result
 from icpquery_mcp.tools import local_tools
 
 LOCAL_READ_TOOL = ToolAnnotations(
@@ -25,7 +26,7 @@ REMOTE_READ_TOOL = ToolAnnotations(
     open_world_hint=True,
 )
 
-# 强制单次请求-完成模式的元数据，下发给客户端以便智能体在规划阶段就感知到串行约束。
+# Advertise serialized execution so agents can account for it during planning.
 SINGLE_REQUEST_META = {
     "icpquery/concurrency_mode": "single_request_complete",
     "icpquery/concurrency_reason": (
@@ -48,13 +49,20 @@ SERVER_INSTRUCTIONS = (
     "icp_query for normal MIIT website/app/mini-program/quick-app records; "
     "use icp_blacklist only for illegal-entity records. Use check_environment "
     "for diagnostics and config_show for redacted effective settings; both are "
-    "local and safe to call any time."
+    "local and safe to call any time. Results are bounded to one page; do not "
+    "paginate or create a local script unless the user explicitly requests an "
+    "exhaustive export. App/mini-program detail enrichment is capped per call. "
+    "Use tools/list as the current parameter and output schema catalog. "
+    "Tool failures carry error.type and isError=true. Public UTF-8 JSON is limited "
+    "to 64 KiB; next_action=refine_query means local clipping: narrow the query, "
+    "disable details, or reduce page_size before advancing pages."
 )
 
 TargetName = Annotated[
     str,
     Field(
         min_length=1,
+        pattern=r"\S",
         description=(
             "Organization, domain, application, mini-program, or quick-app name "
             "to search, as selected by type."
@@ -95,7 +103,7 @@ Proxy = Annotated[
 ]
 
 
-def create_server(config_path: str | None = None) -> Any:
+def create_server(config_path: str | None = None) -> ICPQueryMCPServer:
     cfg = load_config(config_path)
     limiter = ToolLimiter(
         query_per_min=cfg.rate_limit.query_per_min,
@@ -105,7 +113,7 @@ def create_server(config_path: str | None = None) -> Any:
     )
     from icpquery_mcp import __version__
 
-    mcp = MCPServer(
+    mcp = ICPQueryMCPServer(
         "icpquery-mcp",
         title="ICPQuery MCP",
         description="MIIT ICP registration and illegal-entity blacklist queries.",
@@ -114,7 +122,7 @@ def create_server(config_path: str | None = None) -> Any:
         website_url="https://github.com/helGayhub233/ICPQuery-MCP",
         dependencies=[
             "httpx[socks]>=0.27.0",
-            "mcp>=2.2.0,<3",
+            "mcp[cli]>=2.3.0,<3",
             "pillow>=10.0.0",
             "pydantic>=2.0.0",
             "pyyaml>=6.0.0",
@@ -134,8 +142,9 @@ def create_server(config_path: str | None = None) -> Any:
         meta=SINGLE_REQUEST_META,
         structured_output=True,
     )
-    def check_environment() -> EnvironmentReport:
-        return EnvironmentReport.model_validate(local_tools.check_environment(config_path))
+    def check_environment() -> Annotated[CallToolResult, EnvironmentReport]:
+        result = EnvironmentReport.model_validate(local_tools.check_environment(config_path))
+        return tool_result(result.model_dump(mode="json"))
 
     @mcp.tool(
         title="Query MIIT ICP Registrations",
@@ -160,12 +169,14 @@ def create_server(config_path: str | None = None) -> Any:
         page: Page = 1,
         page_size: PageSize = 26,
         proxy: Proxy = "",
-    ) -> ICPQueryResponse:
+        include_details: Annotated[bool, Field(description="Whether to enrich app/mini-program rows with additional detail requests. Defaults to summary-only to keep one call bounded.")] = False,
+        max_detail_enrichment: Annotated[int, Field(ge=0, le=10, description="Maximum detail rows to enrich; remaining rows stay at summary level.")] = 10,
+    ) -> Annotated[CallToolResult, ICPQueryResponse]:
         result = await limiter.run(
             "query",
-            lambda: local_tools.async_icp_query(name, type, page, page_size, proxy, config_path),
+            lambda: local_tools.async_icp_query(name, type, page, page_size, proxy, config_path, include_details, max_detail_enrichment),
         )
-        return ICPQueryResponse.model_validate(result)
+        return tool_result(result, query=True)
 
     @mcp.tool(
         title="Query MIIT Illegal-Entity Blacklist",
@@ -189,12 +200,12 @@ def create_server(config_path: str | None = None) -> Any:
         name: TargetName,
         type: BlacklistType = "bweb",
         proxy: Proxy = "",
-    ) -> ICPQueryResponse:
+    ) -> Annotated[CallToolResult, ICPQueryResponse]:
         result = await limiter.run(
             "blacklist",
             lambda: local_tools.async_icp_blacklist(name, type, proxy, config_path),
         )
-        return ICPQueryResponse.model_validate(result)
+        return tool_result(result, query=True)
 
     @mcp.tool(
         title="Show ICPQuery Configuration",
@@ -209,8 +220,9 @@ def create_server(config_path: str | None = None) -> Any:
         meta=SINGLE_REQUEST_META,
         structured_output=True,
     )
-    def config_show() -> Config:
-        return Config.model_validate(local_tools.show_config(config_path))
+    def config_show() -> Annotated[CallToolResult, Config]:
+        result = Config.model_validate(local_tools.show_config(config_path))
+        return tool_result(result.model_dump(mode="json"))
 
     @mcp.resource(
         "icpquery://config/example",
@@ -220,7 +232,7 @@ def create_server(config_path: str | None = None) -> Any:
         mime_type="text/yaml",
     )
     def config_example() -> str:
-        """ICPQuery-MCP 示例配置。"""
+        """Return the example ICPQuery-MCP configuration."""
         return """timeout: 30
 concurrency: 1
 

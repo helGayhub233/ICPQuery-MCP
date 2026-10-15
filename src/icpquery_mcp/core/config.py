@@ -28,7 +28,7 @@ class ProxyConfig(BaseModel):
 
 class Config(BaseModel):
     timeout: int = 30
-    # 并发敏感：默认即串行。normalized() 会再次强制为 1，确保任何来源的配置都不会突破单次请求-完成模式。
+    # The upstream is concurrency-sensitive; normalized() enforces serialized execution for every configuration source.
     concurrency: int = 1
     rate_limit: RateLimitConfig = Field(default_factory=RateLimitConfig)
     proxy: ProxyConfig = Field(default_factory=ProxyConfig)
